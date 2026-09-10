@@ -191,6 +191,24 @@
   .lightbox.open{ display:flex; }
   .lightbox img{ max-width:100%; max-height:90vh; border-radius:6px; }
 
+  /* ---------- registration modal (mobile) ---------- */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(5,8,11,.5); display:none; align-items:center; justify-content:center; z-index:85; padding:16px; }
+  .modal-overlay.open{ display:flex; }
+  .modal-sheet{ background:var(--surface); border-radius:var(--radius); width:100%; max-width:640px; max-height:92vh; display:flex; flex-direction:column; box-shadow:var(--shadow); }
+  .modal-header{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border-soft); }
+  .modal-header h2{ font-size:16px; }
+  .modal-body{ padding:16px 18px; overflow-y:auto; }
+  .modal-footer{ display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid var(--border-soft); }
+  .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-field{ display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--ink-soft); font-weight:600; }
+  .form-field textarea.field-input{ resize:vertical; min-height:64px; }
+  .form-field.wide{ grid-column:1 / -1; }
+  @media (max-width:600px){
+    .modal-overlay{ padding:0; }
+    .modal-sheet{ max-width:none; max-height:100vh; height:100vh; border-radius:0; }
+    .form-grid{ grid-template-columns:1fr; }
+  }
+
   /* ---------- dashboard ---------- */
   .dash-grid{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:14px; }
   @media (max-width:900px){ .dash-grid{ grid-template-columns:1fr; } }
@@ -375,6 +393,54 @@
 
 <div class="lightbox" id="lightbox"><img id="lightboxImg"></div>
 <div class="toast-wrap" id="toastWrap"></div>
+
+<div class="modal-overlay" id="regModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2>이슈 신규 등록</h2>
+      <button type="button" class="btn ghost" id="btnRegClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="regForm">
+        <div class="form-grid">
+          <label class="form-field"><span>발생일</span><input type="date" name="occurredAt" class="field-input"></label>
+          <label class="form-field"><span>제조일</span><input type="date" name="manufacturedAt" class="field-input"></label>
+          <label class="form-field"><span>발생처</span><input type="text" name="source" class="field-input"></label>
+          <label class="form-field"><span>제품군</span><input type="text" name="productGroup" class="field-input" list="dlGroup"></label>
+          <label class="form-field"><span>PART NAME</span><input type="text" name="partName" class="field-input"></label>
+          <label class="form-field"><span>CODE</span><input type="text" name="codeNo" class="field-input"></label>
+          <label class="form-field"><span>수량</span><input type="number" name="qty" class="field-input" min="0"></label>
+          <label class="form-field"><span>현상</span><input type="text" name="symptom" class="field-input"></label>
+          <label class="form-field"><span>불량유형</span><input type="text" name="defectType" class="field-input" list="dlDefect"></label>
+          <label class="form-field wide"><span>발생 원인</span><textarea name="cause" class="field-input" rows="3"></textarea></label>
+          <label class="form-field"><span>개선부서</span><input type="text" name="improvementDept" class="field-input"></label>
+          <label class="form-field"><span>일정</span><input type="date" name="schedule" class="field-input"></label>
+          <label class="form-field wide"><span>개선 대책</span><textarea name="improvement" class="field-input" rows="3"></textarea></label>
+          <label class="form-field"><span>완료여부</span>
+            <select name="status" class="field-input">
+              <option value="진행중">진행중</option>
+              <option value="완료">완료</option>
+            </select>
+          </label>
+          <label class="form-field"><span>유효성 검토결과</span>
+            <select name="validationResult" class="field-input">
+              <option value="대기">대기</option>
+              <option value="적합">적합</option>
+              <option value="부적합">부적합</option>
+            </select>
+          </label>
+          <label class="form-field"><span>불량 이미지</span><input type="file" accept="image/*" data-photo="defectImage" class="field-input"></label>
+          <label class="form-field"><span>개선 이미지</span><input type="file" accept="image/*" data-photo="improvementImage" class="field-input"></label>
+          <label class="form-field"><span>대책서 첨부</span><input type="file" accept="image/*" data-photo="planImage" class="field-input"></label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" id="btnRegCancel">취소</button>
+      <button type="button" class="btn primary" id="btnRegConfirm">확인</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -702,7 +768,64 @@
     }
   });
 
+  /* ---------------- mobile registration modal ---------------- */
+  function isMobile(){ return window.matchMedia('(max-width:760px)').matches; }
+
+  const regModal = $('#regModal');
+  const regForm = $('#regForm');
+  let regPhotos = {};
+
+  function openRegModal(){
+    regForm.reset();
+    regPhotos = {};
+    regModal.classList.add('open');
+  }
+  function closeRegModal(){ regModal.classList.remove('open'); }
+
+  $('#btnRegClose').addEventListener('click', closeRegModal);
+  $('#btnRegCancel').addEventListener('click', closeRegModal);
+  regModal.addEventListener('click', e => { if (e.target === regModal) closeRegModal(); });
+
+  regForm.addEventListener('change', async e => {
+    const t = e.target;
+    if (!t.dataset.photo) return;
+    const file = t.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')){ toast('이미지 파일만 첨부할 수 있습니다.'); t.value = ''; return; }
+    try{ regPhotos[t.dataset.photo] = await compressImage(file); }
+    catch(err){ toast('이미지 처리에 실패했습니다.'); }
+  });
+
+  $('#btnRegConfirm').addEventListener('click', async () => {
+    const fd = new FormData(regForm);
+    const data = {
+      occurredAt: fd.get('occurredAt') || new Date().toISOString().slice(0,10),
+      manufacturedAt: fd.get('manufacturedAt') || '',
+      source: fd.get('source') || '',
+      productGroup: fd.get('productGroup') || '',
+      partName: fd.get('partName') || '',
+      codeNo: fd.get('codeNo') || '',
+      qty: fd.get('qty') ? Number(fd.get('qty')) : null,
+      symptom: fd.get('symptom') || '',
+      defectType: fd.get('defectType') || '',
+      cause: fd.get('cause') || '',
+      improvementDept: fd.get('improvementDept') || '',
+      schedule: fd.get('schedule') || '',
+      improvement: fd.get('improvement') || '',
+      status: fd.get('status') || '진행중',
+      validationResult: fd.get('validationResult') || '대기',
+      createdAt: new Date().toISOString()
+    };
+    Object.assign(data, regPhotos);
+    try{
+      await Store.add(data);
+      closeRegModal();
+      toast('이슈를 등록했습니다.');
+    } catch(err){ toast('등록에 실패했습니다.'); }
+  });
+
   $('#btnNew').addEventListener('click', async () => {
+    if (isMobile()){ openRegModal(); return; }
     try{
       await Store.add({
         occurredAt: new Date().toISOString().slice(0,10),
