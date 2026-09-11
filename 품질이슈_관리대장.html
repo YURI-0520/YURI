@@ -336,6 +336,9 @@
       <select id="qGroup" class="field-input" style="max-width:160px;">
         <option value="">제품군 전체</option>
       </select>
+      <input id="qDateFrom" class="field-input" type="date" style="max-width:150px;" title="발생일 시작">
+      <span style="color:var(--ink-faint);">~</span>
+      <input id="qDateTo" class="field-input" type="date" style="max-width:150px;" title="발생일 종료">
       <button id="btnExport" class="btn">엑셀 다운로드</button>
       <button id="btnRefresh" class="btn" title="다른 기기에서 등록한 내역 즉시 불러오기">↻ 새로고침</button>
       <button id="btnPrint" class="btn">인쇄 · PDF 저장</button>
@@ -683,9 +686,13 @@
     const q = $('#qSearch').value.trim().toLowerCase();
     const status = $('#qStatus').value;
     const group = $('#qGroup').value;
+    const dateFrom = $('#qDateFrom').value;
+    const dateTo = $('#qDateTo').value;
     return issues.filter(it => {
       if (status && it.status !== status) return false;
       if (group && it.productGroup !== group) return false;
+      if (dateFrom && (!it.occurredAt || it.occurredAt < dateFrom)) return false;
+      if (dateTo && (!it.occurredAt || it.occurredAt > dateTo)) return false;
       if (q){
         const hay = [it.partName, it.source, it.defectType, it.codeNo, it.symptom].join(' ').toLowerCase();
         if (hay.indexOf(q) === -1) return false;
@@ -956,7 +963,7 @@
     $('#dlGroup').innerHTML = groups.map(g => '<option value="' + esc(g) + '">').join('');
   }
 
-  ['qSearch','qStatus','qGroup'].forEach(id => $('#' + id).addEventListener('input', renderList));
+  ['qSearch','qStatus','qGroup','qDateFrom','qDateTo'].forEach(id => $('#' + id).addEventListener('input', renderList));
 
   function monthNum(dateStr){ if (!dateStr) return ''; const d = new Date(dateStr + 'T00:00:00'); return isNaN(d) ? '' : d.getMonth() + 1; }
   function weekOfMonth(dateStr){ if (!dateStr) return ''; const d = new Date(dateStr + 'T00:00:00'); return isNaN(d) ? '' : Math.ceil(d.getDate() / 7); }
@@ -1100,6 +1107,8 @@
       const q = $('#qSearch').value.trim(); if (q) parts.push('검색: ' + q);
       const st = $('#qStatus').value; if (st) parts.push('완료여부: ' + st);
       const gr = $('#qGroup').value; if (gr) parts.push('제품군: ' + gr);
+      const df = $('#qDateFrom').value, dt = $('#qDateTo').value;
+      if (df || dt) parts.push('발생일: ' + (df || '처음') + ' ~ ' + (dt || '현재'));
       $('#printMetaList').textContent = parts.join(' · ');
     } else {
       $('#printMetaDash').textContent = '출력일시: ' + ts;
