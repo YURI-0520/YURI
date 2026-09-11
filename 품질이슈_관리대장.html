@@ -214,6 +214,18 @@
     .form-grid{ grid-template-columns:1fr; }
   }
 
+  /* ---------- read-only detail modal ---------- */
+  .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; }
+  .detail-field{ display:flex; flex-direction:column; gap:2px; }
+  .detail-field .dt-label{ color:var(--ink-faint); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .detail-field .dt-value{ color:var(--ink); font-size:13.5px; white-space:pre-wrap; word-break:break-word; }
+  .detail-field.wide{ grid-column:1 / -1; }
+  .detail-photos{ display:flex; gap:12px; flex-wrap:wrap; margin-top:16px; }
+  .detail-photo{ display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .detail-photo img{ width:120px; height:120px; object-fit:cover; border-radius:8px; border:1px solid var(--border); cursor:zoom-in; }
+  .detail-photo span{ font-size:11px; color:var(--ink-faint); }
+  @media (max-width:600px){ .detail-grid{ grid-template-columns:1fr; } }
+
   /* ---------- dashboard ---------- */
   .dash-grid{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:14px; }
   @media (max-width:900px){ .dash-grid{ grid-template-columns:1fr; } }
@@ -446,6 +458,24 @@
       <button type="button" class="btn danger" id="btnRegDelete" style="display:none; margin-right:auto;">삭제</button>
       <button type="button" class="btn" id="btnRegCancel">취소</button>
       <button type="button" class="btn primary" id="btnRegConfirm">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2 id="detailModalTitle">이슈 상세</h2>
+      <button type="button" class="btn ghost" id="btnDetailClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid" id="detailGrid"></div>
+      <div class="detail-photos" id="detailPhotos"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn danger" id="btnDetailDelete" style="margin-right:auto;">삭제</button>
+      <button type="button" class="btn" id="btnDetailClose2">닫기</button>
+      <button type="button" class="btn primary" id="btnDetailEdit">수정</button>
     </div>
   </div>
 </div>
@@ -756,7 +786,7 @@
     const item = e.target.closest('.mlist-item');
     if (!item) return;
     const it = issues.find(x => x.id === item.dataset.id);
-    if (it) openRegModal(it);
+    if (it) openDetailModal(it);
   });
 
   $('#issueBody').addEventListener('change', async e => {
@@ -793,7 +823,52 @@
     }
   });
 
-  /* ---------------- registration / detail modal ---------------- */
+  /* ---------------- read-only detail modal ---------------- */
+  const detailModal = $('#detailModal');
+  const DETAIL_FIELDS = [
+    ['occurredAt','발생일'], ['manufacturedAt','제조일'], ['source','발생처'], ['productGroup','제품군'],
+    ['partName','PART NAME'], ['codeNo','CODE'], ['qty','수량'], ['symptom','현상'], ['defectType','불량유형'],
+    ['improvementDept','개선부서'], ['schedule','일정'], ['status','완료여부'], ['validationResult','유효성 검토결과'],
+    ['cause','발생 원인', true], ['improvement','개선 대책', true]
+  ];
+  let detailId = null;
+
+  function openDetailModal(it){
+    detailId = it.id;
+    $('#detailModalTitle').textContent = it.partName || '이슈 상세';
+    $('#detailGrid').innerHTML = DETAIL_FIELDS.map(([f, label, wide]) => {
+      const v = it[f];
+      const display = (v == null || v === '') ? '-' : esc(v);
+      return '<div class="detail-field' + (wide ? ' wide' : '') + '"><span class="dt-label">' + label + '</span><span class="dt-value">' + display + '</span></div>';
+    }).join('');
+    const photos = [['defectImage','불량 이미지'], ['improvementImage','개선 이미지'], ['planImage','대책서 첨부']].filter(([f]) => it[f]);
+    $('#detailPhotos').innerHTML = photos.map(([f, label]) =>
+      '<div class="detail-photo"><img src="' + it[f] + '"><span>' + label + '</span></div>'
+    ).join('');
+    detailModal.classList.add('open');
+  }
+  function closeDetailModal(){ detailModal.classList.remove('open'); }
+
+  $('#btnDetailClose').addEventListener('click', closeDetailModal);
+  $('#btnDetailClose2').addEventListener('click', closeDetailModal);
+  detailModal.addEventListener('click', e => { if (e.target === detailModal) closeDetailModal(); });
+  $('#detailPhotos').addEventListener('click', e => {
+    const img = e.target.closest('img');
+    if (img) openLightbox(img.src);
+  });
+  $('#btnDetailEdit').addEventListener('click', () => {
+    const it = issues.find(x => x.id === detailId);
+    closeDetailModal();
+    if (it) openRegModal(it);
+  });
+  $('#btnDetailDelete').addEventListener('click', async () => {
+    if (!detailId) return;
+    if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+    try{ await Store.remove(detailId); closeDetailModal(); toast('삭제했습니다.'); }
+    catch(err){ toast('삭제에 실패했습니다.'); }
+  });
+
+  /* ---------------- registration / edit modal ---------------- */
   const regModal = $('#regModal');
   const regForm = $('#regForm');
   const REG_FIELDS = ['occurredAt','manufacturedAt','source','productGroup','partName','codeNo','qty',
