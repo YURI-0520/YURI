@@ -186,10 +186,8 @@
   .btn-row-del:hover{ color:var(--bad); background:var(--bad-soft); }
   .print-status{ display:none; }
 
-  @media (max-width:760px){
-    .table-scroll{ display:none; }
-    .mlist{ display:block; }
-  }
+  .table-scroll{ display:none; }
+  .mlist{ display:block; }
 
   .toast-wrap{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:80; display:flex; flex-direction:column; gap:8px; align-items:center; }
   .toast{ background:var(--ink); color:var(--paper); padding:9px 16px; border-radius:8px; font-size:13px; box-shadow:var(--shadow); }
@@ -270,7 +268,8 @@
     .print-only{ display:block; margin-bottom:14px; }
     .print-only .meta{ font-size:11px; color:#555; }
     .listwrap{ box-shadow:none; border:none; border-radius:0; }
-    .table-scroll{ overflow:visible !important; }
+    .mlist{ display:none !important; }
+    .table-scroll{ display:block !important; overflow:visible !important; }
     table.issues{ font-size:9px; display:table !important; width:100%; table-layout:fixed; }
     table.issues thead{ display:table-header-group !important; }
     table.issues tbody{ display:table-row-group !important; }
@@ -328,7 +327,7 @@
       <button id="btnExport" class="btn">엑셀 다운로드</button>
       <button id="btnRefresh" class="btn" title="다른 기기에서 등록한 내역 즉시 불러오기">↻ 새로고침</button>
       <button id="btnPrint" class="btn">인쇄 · PDF 저장</button>
-      <button id="btnNew" class="btn primary">+ 행 추가</button>
+      <button id="btnNew" class="btn primary">+ 신규 등록</button>
     </div>
 
     <div class="listwrap">
@@ -355,7 +354,7 @@
         </table>
       </div>
       <div class="mlist" id="mobileList"></div>
-      <div id="emptyState" class="empty" style="display:none;">등록된 이슈가 없습니다. 우측 상단의 “+ 행 추가”로 첫 항목을 추가하세요.</div>
+      <div id="emptyState" class="empty" style="display:none;">등록된 이슈가 없습니다. 우측 상단의 “+ 신규 등록”으로 첫 항목을 추가하세요.</div>
     </div>
   </section>
 
@@ -794,9 +793,7 @@
     }
   });
 
-  /* ---------------- mobile registration modal ---------------- */
-  function isMobile(){ return window.matchMedia('(max-width:760px)').matches; }
-
+  /* ---------------- registration / detail modal ---------------- */
   const regModal = $('#regModal');
   const regForm = $('#regForm');
   const REG_FIELDS = ['occurredAt','manufacturedAt','source','productGroup','partName','codeNo','qty',
@@ -868,17 +865,7 @@
     catch(err){ toast('삭제에 실패했습니다.'); }
   });
 
-  $('#btnNew').addEventListener('click', async () => {
-    if (isMobile()){ openRegModal(); return; }
-    try{
-      await Store.add({
-        occurredAt: new Date().toISOString().slice(0,10),
-        status: '진행중',
-        validationResult: '대기',
-        createdAt: new Date().toISOString()
-      });
-    } catch(err){ toast('행 추가에 실패했습니다.'); }
-  });
+  $('#btnNew').addEventListener('click', () => openRegModal());
 
   $('#btnRefresh').addEventListener('click', async () => {
     try{ await Store.refresh(); toast('최신 내역을 불러왔습니다.'); }
