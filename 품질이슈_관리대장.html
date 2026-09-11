@@ -154,6 +154,19 @@
   .list-thumb{ width:32px; height:32px; border-radius:6px; object-fit:cover; border:1px solid var(--border); cursor:zoom-in; display:block; }
   .empty{ padding:48px 20px; text-align:center; color:var(--ink-faint); }
 
+  /* ---------- mobile compact list ---------- */
+  .mlist{ display:none; }
+  .mlist-item{ display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-bottom:1px solid var(--border-soft); cursor:pointer; }
+  .mlist-item:last-child{ border-bottom:none; }
+  .mlist-item:active{ background:var(--surface-2); }
+  .mlist-top{ display:flex; align-items:center; gap:8px; }
+  .mlist-no{ font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); flex:none; }
+  .mlist-part{ font-weight:700; font-size:14px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mlist-status{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; color:#fff; flex:none; }
+  .mlist-status.status-진행중{ background:var(--bad); }
+  .mlist-status.status-완료{ background:var(--accent); }
+  .mlist-sub{ font-size:12px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
   .cell-input{ width:100%; min-width:90px; border:1px solid transparent; background:transparent; color:var(--ink); font-size:13px; padding:4px 5px; border-radius:5px; }
   .cell-input:hover{ border-color:var(--border); }
   .cell-input:focus{ outline:none; border-color:var(--accent); background:var(--surface); }
@@ -174,14 +187,8 @@
   .print-status{ display:none; }
 
   @media (max-width:760px){
-    table.issues thead{ display:none; }
-    table.issues, table.issues tbody, table.issues tr, table.issues td{ display:block; width:100%; }
-    table.issues tbody tr{ padding:12px 14px; border-bottom:1px solid var(--border-soft); }
-    table.issues tbody td{ border:none; padding:3px 0; }
-    table.issues tbody td[data-label]::before{
-      content:attr(data-label); display:block; font-size:10.5px; color:var(--ink-faint);
-      font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:1px;
-    }
+    .table-scroll{ display:none; }
+    .mlist{ display:block; }
   }
 
   .toast-wrap{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:80; display:flex; flex-direction:column; gap:8px; align-items:center; }
@@ -347,6 +354,7 @@
           <tbody id="issueBody"></tbody>
         </table>
       </div>
+      <div class="mlist" id="mobileList"></div>
       <div id="emptyState" class="empty" style="display:none;">등록된 이슈가 없습니다. 우측 상단의 “+ 행 추가”로 첫 항목을 추가하세요.</div>
     </div>
   </section>
@@ -397,7 +405,7 @@
 <div class="modal-overlay" id="regModal">
   <div class="modal-sheet">
     <div class="modal-header">
-      <h2>이슈 신규 등록</h2>
+      <h2 id="regModalTitle">이슈 신규 등록</h2>
       <button type="button" class="btn ghost" id="btnRegClose">✕</button>
     </div>
     <div class="modal-body">
@@ -436,6 +444,7 @@
       </form>
     </div>
     <div class="modal-footer">
+      <button type="button" class="btn danger" id="btnRegDelete" style="display:none; margin-right:auto;">삭제</button>
       <button type="button" class="btn" id="btnRegCancel">취소</button>
       <button type="button" class="btn primary" id="btnRegConfirm">확인</button>
     </div>
@@ -727,12 +736,29 @@
     '</tr>';
   }
 
+  function renderMobileItem(it, no){
+    const status = it.status || '진행중';
+    const sub = [it.source, it.occurredAt, it.defectType].filter(Boolean).join(' · ');
+    return '<div class="mlist-item" data-id="' + it.id + '">' +
+      '<div class="mlist-top"><span class="mlist-no">' + no + '</span><span class="mlist-part">' + esc(it.partName || '(이름 없음)') + '</span><span class="mlist-status status-' + status + '">' + status + '</span></div>' +
+      '<div class="mlist-sub">' + esc(sub || '-') + '</div>' +
+    '</div>';
+  }
+
   function renderList(){
     const list = filtered();
     const body = $('#issueBody');
     $('#emptyState').style.display = list.length ? 'none' : 'block';
     body.innerHTML = list.map((it, idx) => renderRow(it, idx + 1)).join('');
+    $('#mobileList').innerHTML = list.map((it, idx) => renderMobileItem(it, idx + 1)).join('');
   }
+
+  $('#mobileList').addEventListener('click', e => {
+    const item = e.target.closest('.mlist-item');
+    if (!item) return;
+    const it = issues.find(x => x.id === item.dataset.id);
+    if (it) openRegModal(it);
+  });
 
   $('#issueBody').addEventListener('change', async e => {
     const t = e.target;
@@ -773,11 +799,22 @@
 
   const regModal = $('#regModal');
   const regForm = $('#regForm');
+  const REG_FIELDS = ['occurredAt','manufacturedAt','source','productGroup','partName','codeNo','qty',
+    'symptom','defectType','cause','improvementDept','schedule','improvement','status','validationResult'];
   let regPhotos = {};
+  let editingId = null;
 
-  function openRegModal(){
+  function openRegModal(it){
     regForm.reset();
-    regPhotos = {};
+    editingId = it ? it.id : null;
+    $('#regModalTitle').textContent = it ? '이슈 상세 · 수정' : '이슈 신규 등록';
+    $('#btnRegDelete').style.display = it ? 'inline-flex' : 'none';
+    if (it){
+      REG_FIELDS.forEach(f => { const el = regForm.elements[f]; if (el) el.value = it[f] != null ? it[f] : ''; });
+      regPhotos = { defectImage: it.defectImage || '', improvementImage: it.improvementImage || '', planImage: it.planImage || '' };
+    } else {
+      regPhotos = {};
+    }
     regModal.classList.add('open');
   }
   function closeRegModal(){ regModal.classList.remove('open'); }
@@ -813,15 +850,22 @@
       schedule: fd.get('schedule') || '',
       improvement: fd.get('improvement') || '',
       status: fd.get('status') || '진행중',
-      validationResult: fd.get('validationResult') || '대기',
-      createdAt: new Date().toISOString()
+      validationResult: fd.get('validationResult') || '대기'
     };
     Object.assign(data, regPhotos);
     try{
-      await Store.add(data);
+      if (editingId) await Store.update(editingId, data);
+      else { data.createdAt = new Date().toISOString(); await Store.add(data); }
       closeRegModal();
-      toast('이슈를 등록했습니다.');
-    } catch(err){ toast('등록에 실패했습니다.'); }
+      toast(editingId ? '수정했습니다.' : '이슈를 등록했습니다.');
+    } catch(err){ toast('저장에 실패했습니다.'); }
+  });
+
+  $('#btnRegDelete').addEventListener('click', async () => {
+    if (!editingId) return;
+    if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+    try{ await Store.remove(editingId); closeRegModal(); toast('삭제했습니다.'); }
+    catch(err){ toast('삭제에 실패했습니다.'); }
   });
 
   $('#btnNew').addEventListener('click', async () => {
